@@ -6,10 +6,22 @@ const admin = require('firebase-admin');
 const User = require('../Models/User.model');
 const multer = require('multer');
 const serviceAccount = require('../auction-app-dcd79-firebase-adminsdk-cf6d6-93c69eac03.json');
+const nodemailer = require("nodemailer")
 const authenticate = require('../Middleware/authMiddlware');
+const crypto = require("crypto");
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
+const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+        user: "altlakshi@gmail.com",
+        pass: "jzle plal lxvf pilt",
+    },
+});
+
 const bucket = admin.storage().bucket('gs://auction-app-dcd79.appspot.com');
 // Register a new user
 UserRouter.post('/register', async (req, res) => {
@@ -170,20 +182,105 @@ UserRouter.put('/update_password/:userId', async (req, res) => {
 
 UserRouter.get('/getUserDetails', authenticate, async (req, res) => {
     const userId = req.user.userId; // Assuming you have the user ID in req.user.userId after authentication
-  
+
     try {
-      const user = await User.findById(userId);
-  
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-  
-      // Send user details as a JSON response
-      res.json(user);
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Send user details as a JSON response
+        res.json(user);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Server error' });
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
     }
-  });
+});
+
+
+UserRouter.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const resetToken = crypto.randomBytes(20).toString('hex');
+        const resetTokenExpiration = Date.now() + 3600000;
+
+        user.resetToken = resetToken;
+        user.resetTokenExpiration = resetTokenExpiration;
+        await user.save();
+        let emialHtml = `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Password Reset</title>
+        </head>
+        <body style="font-family: Arial, sans-serif;">
+        
+          <div style="padding: 20px;">
+            <h2>Password Reset</h2>
+            <p>Hello ${user.name},</p>
+            <p>Click the link below to reset your password:</p>
+            <p><a href="http://localhost:5173/reset-password?token=${resetToken}" style="text-decoration: none; background-color: #3498db; color: white; padding: 10px 20px; border-radius: 5px;">Reset Your Password</a></p>
+            <p>If you didn't request a password reset, you can ignore this email.</p>
+            <p>Best regards,<br>Chaitfy</p>
+          </div>
+        </body>
+        </html>
+        `
+        const mailOptions2 = {
+            from: "altlakshi@gmail.com",
+            to: email,
+            subject: "Reset Password Link <Read Required>",
+            html: emialHtml,
+        };
+        transporter.sendMail(mailOptions2, (error, info) => {
+            if (error) {
+                console.error("Error sending email:", error);
+                return res.status(500).json({ message: "Error sending email." });
+            }
+            console.log("Email sent:", info.response);
+            res.json({ message: 'Reset link sent successfully.' });
+        });
+
+    } catch (error) {
+        console.error('Error sending reset link:', error);
+        res.status(500).json({ message: 'Server error.' });
+    }
+});
+
+UserRouter.post('/reset-password', async (req, res) => {
+    const { resetToken, newPassword } = req.body;
+
+    try {
+        const user = await User.findOne({
+            resetToken,
+            resetTokenExpiration: { $gt: Date.now() },
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired reset token.' });
+        }
+
+        // Update the user's password
+        const hash = await bcrypt.hash(newPassword, 10);
+        user.password = hash;
+        user.resetToken = undefined;
+        user.resetTokenExpiration = undefined;
+        await user.save();
+
+        res.json({ message: 'Password reset successful.' });
+    } catch (error) {
+        console.error('Error resetting password:', error);
+        res.status(500).json({ message: 'Server error.' });
+    }
+});
 
 module.exports = UserRouter;

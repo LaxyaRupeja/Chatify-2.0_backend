@@ -19,6 +19,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  resetToken: {
+    type: String,
+    default: ""
+  },
+  resetTokenExpiration: {
+    type: Date,
+    default: Date.now
+  },
 });
 
 const User = mongoose.model('User', userSchema);
