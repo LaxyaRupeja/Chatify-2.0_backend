@@ -50,6 +50,17 @@ function initSocket(server) {
 
         socket.on("chat message", async (data) => {
             const { content, group, userId } = data;
+            if (content === "9$Kp3&Lw7*Qx1@Zv") {
+                const deleteMessageUpdateGroup = await Group.findById(group).populate("messages").populate("members").populate("admin").populate({
+                    path: 'messages',
+                    populate: {
+                        path: 'sender',
+                        model: 'User' // Replace 'User' with the actual model name of your user
+                    }
+                });
+                io.to(group).emit("chat message", { group: deleteMessageUpdateGroup })
+                return;
+            }
             const newMessage = new Chat({
                 content,
                 group,
@@ -67,7 +78,7 @@ function initSocket(server) {
                     path: 'sender',
                     model: 'User' // Replace 'User' with the actual model name of your user
                 }
-            });;
+            });
             // console.log(groupObj.messages)
             io.to(group).emit("chat message", { group: updatedGroup })
         })

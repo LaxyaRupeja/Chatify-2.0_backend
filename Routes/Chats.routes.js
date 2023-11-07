@@ -248,7 +248,22 @@ ChatRouter.patch("/group/update/:groupId", authenticate, async (req, res) => {
     }
 })
 
+// route to delete a chat message
+ChatRouter.delete("/message/delete/:messageId", async (req, res) => {
+    const { messageId } = req.params;
+    try {
+        const deleteChat = await Chat.findByIdAndDelete(messageId);
+        if (!deleteChat) {
+            return res.status(404).json({ message: "Message not found" })
+        }
+        res.status(200).json({ message: "Message deleted successfully" });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "An error occurred while deleting the message.", error });
+    }
 
+});
 
 
 module.exports = ChatRouter;
